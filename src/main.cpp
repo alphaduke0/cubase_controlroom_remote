@@ -1,10 +1,16 @@
 #include "MIDIUSB.h"
+#include <TM1637Display.h>
 
 // Button inputs
 static const uint8_t button_pin_1 = 6;
 static const uint8_t button_pin_2 = 7;
 static const uint8_t button_pin_3 = 8;
 static const uint8_t button_pin_4 = 9;
+
+static const uint8_t display_clk = 5;
+static const uint8_t display_dio = 4;
+TM1637Display display(display_clk, display_dio);
+
 
 // Midi channel of device
 static const uint8_t midi_channel = 0;
@@ -23,7 +29,11 @@ void setup() {
   pinMode(6, INPUT);
   pinMode(7, INPUT);
   pinMode(8, INPUT);
-  pinMode(9, INPUT);   
+  pinMode(9, INPUT); 
+
+  // Display init
+  display.setBrightness(0x0f);
+  
 }
 
 void PrintButtonStates()
@@ -90,6 +100,7 @@ void MidiSendButtonState()
         Serial.print("]: Note off");
         Serial.println();
         noteOff(midi_channel, button_index, 127);
+        display.showNumberDec(button_index, false);
         flush_needed = true;
       }
     }

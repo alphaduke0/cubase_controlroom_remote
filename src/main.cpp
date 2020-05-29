@@ -7,6 +7,16 @@ static const uint8_t button_pin_2 = 7;
 static const uint8_t button_pin_3 = 8;
 static const uint8_t button_pin_4 = 9;
 
+// Encoder
+static const uint8_t encoder_A = 14;
+static const uint8_t encoder_B = 15;
+static const uint8_t encoder_C = 13;
+
+// Values
+static const uint8_t volume_note = 4;
+int volume = 0;
+int volume_old = 0;
+
 static const uint8_t display_clk = 5;
 static const uint8_t display_dio = 4;
 TM1637Display display(display_clk, display_dio);
@@ -31,9 +41,49 @@ void setup() {
   pinMode(8, INPUT);
   pinMode(9, INPUT); 
 
+  pinMode(encoder_A, INPUT);
+  pinMode(encoder_B, INPUT);
+  
   // Display init
   display.setBrightness(0x0f);
   
+}
+
+void PrintEncoderStates()
+{
+  String encoder_value_a(digitalRead(encoder_A));
+  String encoder_value_b(digitalRead(encoder_B));
+  String encoder_value_c(digitalRead(encoder_C));
+  String encoder_state = "A:" + encoder_value_a + "B:" + encoder_value_b + "C:" + encoder_value_c;
+  Serial.println(encoder_state);  
+}
+
+int ReadEncoderValue()
+{
+  static bool old_A = false;
+  static bool old_B = false;
+  bool new_A = digitalRead(encoder_A);
+  bool new_B = digitalRead(encoder_B);
+  
+  int direction = 0;
+  
+  // Check if encoder values changed
+
+     // Read direction
+    if (new_A == true && new_B == false)
+    {
+      direction = 1;
+    }
+    if (new_A == false && new_B == true)
+    {
+      direction = -1;
+    }
+    
+    // Set new as old values
+    old_A = new_A;
+    old_B = new_B;
+  
+  return direction;
 }
 
 void PrintButtonStates()
@@ -48,6 +98,8 @@ void PrintButtonStates()
   }
   Serial.println(output);  
 }
+
+
 
 void MidiSendButtonState()
 {
@@ -114,10 +166,39 @@ void MidiSendButtonState()
   }
 }
 
+void UpdateVolume()
+{
+  volume += ReadEncoderValue();
+
+  if (volume != volume_old)
+  {
+    if (volume >= 127)
+    {
+      volume = 127;
+    }
+
+    if (volume < 0)
+    {
+      volume = 0;
+    }
+    volume_old = volume;
+    noteOn(midi_channel, volume_note, volume);
+    delay(10);
+    noteOff(midi_channel, volume_note, volume);
+
+    MidiUSB.flush();
+    display.showNumberDec(volume, false);
+    Serial.println(volume);
+  }
+}
+
 void loop() {
-  //PrintButtonStates();
+  // PrintButtonStates();
   MidiSendButtonState();
-  // put your main code here, to run repeatedly:
+  UpdateVolume();
+  
+  //PrintEncoderStates();
+  
   delay(5);
 }
 

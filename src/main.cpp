@@ -1,5 +1,6 @@
 #include "MIDIUSB.h"
 #include <TM1637Display.h>
+#include <SimpleRotary.h>
 
 // Button inputs
 static const uint8_t button_pin_1 = 6;
@@ -16,6 +17,7 @@ static const uint8_t encoder_C = 13;
 static const uint8_t volume_note = 4;
 int volume = 0;
 int volume_old = 0;
+unsigned int volume_steps = 5;
 
 static const uint8_t display_clk = 5;
 static const uint8_t display_dio = 4;
@@ -33,20 +35,25 @@ static const uint8_t buttons[] = {
   button_pin_4
 };
 
+// Rotatry encoder
+SimpleRotary encoder(encoder_A, encoder_B, encoder_C);
+
 void setup() {
   Serial.begin(115200);
   // Todo: replace with loop
   pinMode(6, INPUT);
   pinMode(7, INPUT);
   pinMode(8, INPUT);
-  pinMode(9, INPUT); 
+  pinMode(9, INPUT);
 
   pinMode(encoder_A, INPUT);
   pinMode(encoder_B, INPUT);
-  
+
   // Display init
   display.setBrightness(0x0f);
-  
+
+  // debounce rotary
+  encoder.setDebounceDelay(3);
 }
 
 void PrintEncoderStates()
@@ -55,7 +62,7 @@ void PrintEncoderStates()
   String encoder_value_b(digitalRead(encoder_B));
   String encoder_value_c(digitalRead(encoder_C));
   String encoder_state = "A:" + encoder_value_a + "B:" + encoder_value_b + "C:" + encoder_value_c;
-  Serial.println(encoder_state);  
+  Serial.println(encoder_state);
 }
 
 int ReadEncoderValue()
@@ -64,31 +71,33 @@ int ReadEncoderValue()
   static bool old_B = false;
   bool new_A = digitalRead(encoder_A);
   bool new_B = digitalRead(encoder_B);
-  
+
   int direction = 0;
-  
+
   // Check if encoder values changed
 
-     // Read direction
-    if (new_A == true && new_B == false)
-    {
-      direction = 1;
-    }
-    if (new_A == false && new_B == true)
-    {
-      direction = -1;
-    }
-    
+  // Read direction
+  if (new_A == true && new_B == false)
+  {
+    direction = 1;
     // Set new as old values
     old_A = new_A;
     old_B = new_B;
-  
+  }
+  if (new_A == false && new_B == true)
+  {
+    direction = -1;
+    // Set new as old values
+    old_A = new_A;
+    old_B = new_B;
+  }
+
   return direction;
 }
 
 void PrintButtonStates()
 {
-  uint8_t number_of_buttons = sizeof(buttons)/sizeof(uint8_t);
+  uint8_t number_of_buttons = sizeof(buttons) / sizeof(uint8_t);
   String output;
   for (uint8_t button_index = 0; button_index < number_of_buttons; ++button_index )
   {
@@ -96,7 +105,7 @@ void PrintButtonStates()
     String button_number(button_index);
     output += ", Button[" + button_number + "]: " + value;
   }
-  Serial.println(output);  
+  Serial.println(output);
 }
 
 
@@ -119,7 +128,7 @@ void MidiSendButtonState()
   };
 
   // Set number of buttons
-  uint8_t number_of_buttons = sizeof(buttons)/sizeof(uint8_t);
+  uint8_t number_of_buttons = sizeof(buttons) / sizeof(uint8_t);
 
   // Read button states
   for (uint8_t button_index = 0; button_index < number_of_buttons; ++button_index )
@@ -168,9 +177,17 @@ void MidiSendButtonState()
 
 void UpdateVolume()
 {
-  volume += ReadEncoderValue();
-
-  if (volume != volume_old)
+  int direction = encoder.rotate();
+  if (direction == 1)
+  {
+    //CW
+    volume -= volume_steps;
+  }
+  if (direction == 2)
+  {
+    volume += volume_steps;
+  }
+  if ( volume != volume_old )
   {
     if (volume >= 127)
     {
@@ -188,7 +205,6 @@ void UpdateVolume()
 
     MidiUSB.flush();
     display.showNumberDec(volume, false);
-    Serial.println(volume);
   }
 }
 
@@ -196,9 +212,9 @@ void loop() {
   // PrintButtonStates();
   MidiSendButtonState();
   UpdateVolume();
-  
+
   //PrintEncoderStates();
-  
+
   delay(5);
 }
 

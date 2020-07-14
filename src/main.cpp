@@ -13,11 +13,20 @@ static const uint8_t encoder_A = 14;
 static const uint8_t encoder_B = 15;
 static const uint8_t encoder_C = 13;
 
+static const uint8_t SEG_DONE[] = {
+  SEG_B | SEG_C | SEG_D | SEG_E | SEG_G,           // d
+  SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,   // O
+  SEG_C | SEG_E | SEG_G,                           // n
+  SEG_A | SEG_D | SEG_E | SEG_F | SEG_G            // E
+};
+
+
 // Values
 static const uint8_t volume_note = 4;
 int volume = 0;
 int volume_old = 0;
 unsigned int volume_steps = 5;
+bool dim_state = false;
 
 static const uint8_t display_clk = 5;
 static const uint8_t display_dio = 4;
@@ -37,6 +46,8 @@ static const uint8_t buttons[] = {
 
 // Rotatry encoder
 SimpleRotary encoder(encoder_A, encoder_B, encoder_C);
+
+
 
 void setup() {
   Serial.begin(115200);
@@ -161,7 +172,6 @@ void MidiSendButtonState()
         Serial.print("]: Note off");
         Serial.println();
         noteOff(midi_channel, button_index, 127);
-        display.showNumberDec(button_index, false);
         flush_needed = true;
       }
     }
@@ -208,11 +218,96 @@ void UpdateVolume()
   }
 }
 
+void ReadMidi(void)
+{
+  midiEventPacket_t midiPacket = MidiUSB.read();
+  if (midiPacket.header != 0) {
+    Serial.print("Received: ");
+    Serial.print((uint16_t)midiPacket.header);
+    Serial.print("-");
+    Serial.print((uint16_t)midiPacket.byte1);
+    Serial.print("-");
+    Serial.print((uint16_t)midiPacket.byte2);
+    Serial.print("-");
+    Serial.println((uint16_t)midiPacket.byte3);
+  }
+
+  // Volume update
+  if ((uint16_t)midiPacket.header == 8
+      && (uint16_t)midiPacket.byte1 == 128
+      && (uint16_t)midiPacket.byte2 == 4)
+  {
+    volume = midiPacket.byte3;
+    volume_old = volume;
+    display.showNumberDec(volume,false);
+  }
+
+  // Monitor A/B
+  if ((uint16_t)midiPacket.header == 8
+      && (uint16_t)midiPacket.byte1 == 128
+      && (uint16_t)midiPacket.byte2 == 2
+      && (uint16_t)midiPacket.byte3 == 0)
+  {
+    // Monitor B
+    Serial.println("Monitor B");
+    display.showNumberHexEx(0xB, 0, false);
+  }
+
+  if ((uint16_t)midiPacket.header == 8
+      && (uint16_t)midiPacket.byte1 == 128
+      && (uint16_t)midiPacket.byte2 == 3
+      && (uint16_t)midiPacket.byte3 == 0)
+  {
+    // Monitor A
+    Serial.println("Monitor A");
+    display.showNumberHexEx(0xA, 0, false);
+  }
+
+  // Talkback off
+  if ((uint16_t)midiPacket.header == 8
+      && (uint16_t)midiPacket.byte1 == 128
+      && (uint16_t)midiPacket.byte2 == 0
+      && (uint16_t)midiPacket.byte3 == 0)
+  {
+    Serial.println("Talkback off");
+  }
+
+  // Talkback on
+  if ((uint16_t)midiPacket.header == 8
+      && (uint16_t)midiPacket.byte1 == 128
+      && (uint16_t)midiPacket.byte2 == 0
+      && (uint16_t)midiPacket.byte3 == 127)
+  {
+    Serial.println("Talkback on");
+  }
+
+  // DIM ON
+  if ((uint16_t)midiPacket.header == 8
+      && (uint16_t)midiPacket.byte1 == 128
+      && (uint16_t)midiPacket.byte2 == 1
+      && (uint16_t)midiPacket.byte3 == 127)
+  {
+    Serial.println("DIM on");
+    display.showNumberHexEx(0xD, 0, false);
+    dim_state = true;
+  }
+  // DIM OFF
+  if ((uint16_t)midiPacket.header == 8
+      && (uint16_t)midiPacket.byte1 == 128
+      && (uint16_t)midiPacket.byte2 == 1
+      && (uint16_t)midiPacket.byte3 == 0)
+  {
+    Serial.println("Dim off");
+    display.showNumberHexEx(0xD, 0, false);
+    dim_state = false;
+  }
+}
+
 void loop() {
   // PrintButtonStates();
+  ReadMidi();
   MidiSendButtonState();
   UpdateVolume();
-
   //PrintEncoderStates();
 
   delay(5);

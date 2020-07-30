@@ -25,7 +25,7 @@ static const uint8_t SEG_DONE[] = {
 static const uint8_t volume_note = 4;
 int volume = 0;
 int volume_old = 0;
-unsigned int volume_steps = 5;
+unsigned int volume_steps = 9;
 bool dim_state = false;
 
 static const uint8_t display_clk = 5;
